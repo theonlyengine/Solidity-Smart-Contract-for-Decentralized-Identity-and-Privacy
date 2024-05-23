@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+contract IdentityAndPrivacy is Ownable {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    struct Identity {
+        string name;
+        string email;
+        string[] credentials;
+        bool isVerified;
+    }
+
+    mapping(address => Identity) private identities;
+    mapping(address => EnumerableSet.AddressSet) private approvedViewers;
+
+    event IdentityCreated(address indexed user, string name, string email);
+    event IdentityUpdated(address indexed user, string name, string email);
+    event CredentialAdded(address indexed user, string credential);
+    event ViewerApproved(address indexed user, address indexed viewer);
+    event ViewerRemoved(address indexed user, address indexed viewer);
+
+    modifier onlyIdentityOwner(address _user) {
+        require(msg.sender == _user, "Only the identity owner can perform this action");
+        _;
+    }
+
+    function createIdentity(string memory _name, string memory _email) public {
+        require(bytes(identities[msg.sender].name).length == 0, "Identity already exists");
+
+        identities[msg.sender] = Identity({
+            name: _name,
+            email: _email,
+            credentials: new string ,
+            isVerified: false
+        });
+
+        emit IdentityCreated(msg.sender, _name, _email);
+    }
+
+    function updateIdentity(string memory _name, string memory _email) public {
+        require(bytes(identities[msg.sender].name).length != 0, "Identity does not exist");
+
+        identities[msg.sender].name = _name;
+        identities[msg.sender].email = _email;
+
+        emit IdentityUpdated(msg.sender, _name, _email);
+    }
+
+    function addCredential(string memory _credential) public {
+        require(bytes(identities[msg.sender].name).length != 0, "Identity does not exist");
+
+        identities[msg.sender].credentials.push(_credential);
+
+        emit CredentialAdded(msg.sender, _credential);
+    }
+
+    function approveViewer(address _viewer) public {
+        require(bytes(identities[msg.sender].name).length != 0, "Identity does not exist");
+
+        approvedViewers[msg.sender].add(_viewer);
+
+        emit ViewerApproved(msg.sender, _viewer);
+    }
+
+    function removeViewer(address _viewer) public {
+        require(bytes(identities[msg.sender].name).length != 0, "Identity does not exist");
+
+        approvedViewers[msg.sender].remove(_viewer);
+
+        emit ViewerRemoved(msg.sender, _viewer);
+    }
+
+    function getIdentity(address _user) public view returns (string memory name, string memory email, string[] memory credentials) {
+        require(
+            msg.sender == _user || approvedViewers[_user].contains(msg.sender) || msg.sender == owner(),
+            "Not authorized to view this identity"
+        );
+
+        Identity storage identity = identities[_user];
+        return (identity.name, identity.email, identity.credentials);
+    }
+
+    function isViewerApproved(address _user, address _viewer) public view returns (bool) {
+        return approvedViewers[_user].contains(_viewer);
+    }
+
+    function verifyIdentity(address _user) public onlyOwner {
+        require(bytes(identities[_user].name).length != 0, "Identity does not exist");
+        
+        identities[_user].isVerified = true;
+    }
+
+    function isIdentityVerified(address _user) public view returns (bool) {
+        return identities[_user].isVerified;
+    }
+}
